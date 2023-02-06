@@ -1,0 +1,5 @@
+{
+   "schema": "http",
+   "endpoint": "attendence_tracker",
+   "host": "localhost:3001"
+}

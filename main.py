@@ -1,9 +1,6 @@
-from kivymd.app import MDApp
-from CaptureImage import camera
+from NetworkManager import network_manager
+from Models.Result import Result
 
-class DemoDeepFace(MDApp):
-    def build(self):
-        return camera.CaptureImage()
-    
 if __name__ == "__main__":
-    DemoDeepFace().run()
+    result = Result("Arman", True)
+    network_manager.NetworkManager(result).send_result()
