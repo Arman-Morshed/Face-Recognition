@@ -3,6 +3,7 @@ from server.db import db
 from flask_smorest import Api
 from server.resources.info import blp as UserInfoBluePreint
 import os
+import server.model
 
 def create_app(db_url=None):
 	app = Flask(__name__)
