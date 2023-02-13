@@ -7,6 +7,11 @@ class EmbeddingSchema(Schema):
     embedding = fields.Str(required=True)
     # precision = fields.Str(required=False)
 
+class VerifySchema(Schema):
+    id = fields.Int(required=True)
+    name = fields.Int(required=True)
+
+
 # class PlainUserInfoSchema(Schema):
 #     id = fields.Str(dump_only=True)
 #     name = fields.Str(required=True)
