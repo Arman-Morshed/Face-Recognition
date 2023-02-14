@@ -12,7 +12,9 @@ from server.schemas import EmbeddingSchema, VerifySchema
 from server.model.embedding import EmbeddingModel
 import json
 import numpy as np
-from sqlalchemy import select
+from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
+
 
 UPLOADS_PATH = join(dirname(realpath(__file__)),"images")
 
@@ -48,13 +50,11 @@ class VerifyUser(MethodView):
 
             embedding_test = DeepFace.represent(img_path = file_path, model_name=data['model'])[0]['embedding']
           
-            conn = db.get_engine().connect()
             query = select(EmbeddingModel).where(EmbeddingModel.model == data['model'])
+            conn = db.get_engine().connect()
             exe =conn.execute(query)
             embedding_data = exe.fetchall()
             
-           
-
             distance = 9999
             matched_embedding = embedding_data[0]
             for embedding in embedding_data:
@@ -68,16 +68,9 @@ class VerifyUser(MethodView):
             print()
             print(f"{matched_embedding.name}: {distance}")
             
-            # print(type(embedding_data))
-
-            os.remove(file_path)                        #delete the file once it's embedding is saved
-            resp = jsonify({
-                'id': matched_embedding.id,
-                'name': matched_embedding.name
-
-            })
-            resp.status_code = 201
-            return resp
+            os.remove(file_path)  
+              
+            return returnResponse(distance, matched_embedding)
         else:
             resp = jsonify({'message' : 'Allowed file types is jpeg'})
             resp.status_code = 400
@@ -108,9 +101,12 @@ class RegisterUser(MethodView):
             file.save(file_path)
             embedding_objs = DeepFace.represent(img_path = file_path, model_name=data['model'])
             
-            embedding_data = EmbeddingModel(name = data['name'], model=data['model'], embedding=json.dumps(embedding_objs[0]['embedding']))
-            db.session.add(embedding_data)
-            db.session.commit()
+            embedding_data = EmbeddingModel(user_id= data['id'],name = data['name'], model=data['model'], embedding=json.dumps(embedding_objs[0]['embedding']), precision=0.0, total_req=0)
+            try:
+                db.session.add(embedding_data)
+                db.session.commit()
+            except IntegrityError:
+                abort(400, jsonify({'message': 'Please provide unique id'}))
             os.remove(file_path)                        #delete the file once it's embedding is saved
             # file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
             resp = jsonify({'embeddings' : embedding_objs[0]['embedding']})
@@ -133,3 +129,22 @@ def findCosineDistance(source_representation, test_representation):
     c = np.sum(np.multiply(test_representation, test_representation))
     return 1 - (a / (np.sqrt(b) * np.sqrt(c)))
 
+def returnResponse(distance, matched_embedding): 
+    embedding_entry = EmbeddingModel.query.filter_by(user_id=matched_embedding.user_id).first()
+    embedding_entry.total_req += 1
+    embedding_entry.precision= (matched_embedding.precision * matched_embedding.total_req + distance) / (matched_embedding.total_req + 1)
+    db.session.commit()
+
+    if distance < 0.4:                   
+        resp = jsonify({
+        'id': matched_embedding.user_id,
+        'name': matched_embedding.name
+        })
+        resp.status_code = 201
+    else: 
+        resp = jsonify({
+        'id': -1,
+        'name': "Doesn't match with anyone in the database"
+        })
+        resp.status_code = 404
+    return resp

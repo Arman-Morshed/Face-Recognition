@@ -5,11 +5,11 @@ class EmbeddingSchema(Schema):
     name = fields.Str(required=True)
     model = fields.Str(required=True)
     embedding = fields.Str(required=True)
-    # precision = fields.Str(required=False)
+    precision = fields.Float(required=False)
 
 class VerifySchema(Schema):
-    id = fields.Int(required=True)
-    name = fields.Str(required=True)
+    id = fields.Int(required=False)
+    name = fields.Str(required=False)
 
 
 # class PlainUserInfoSchema(Schema):
