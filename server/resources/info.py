@@ -12,6 +12,7 @@ from server.schemas import EmbeddingSchema, VerifySchema
 from server.model.embedding import EmbeddingModel
 import json
 import numpy as np
+from sqlalchemy import select
 
 UPLOADS_PATH = join(dirname(realpath(__file__)),"images")
 
@@ -46,7 +47,13 @@ class VerifyUser(MethodView):
             file.save(file_path)
 
             embedding_test = DeepFace.represent(img_path = file_path, model_name=data['model'])[0]['embedding']
-            embedding_data = EmbeddingModel.query.all()
+          
+            conn = db.get_engine().connect()
+            query = select(EmbeddingModel).where(EmbeddingModel.model == data['model'])
+            exe =conn.execute(query)
+            embedding_data = exe.fetchall()
+            
+           
 
             distance = 9999
             matched_embedding = embedding_data[0]
@@ -64,9 +71,11 @@ class VerifyUser(MethodView):
             # print(type(embedding_data))
 
             os.remove(file_path)                        #delete the file once it's embedding is saved
-            # file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            # resp = jsonify({'embeddings' : embedding_objs[0]['embedding']})
-            resp = jsonify({'message' : 'Verified'})
+            resp = jsonify({
+                'id': matched_embedding.id,
+                'name': matched_embedding.name
+
+            })
             resp.status_code = 201
             return resp
         else:

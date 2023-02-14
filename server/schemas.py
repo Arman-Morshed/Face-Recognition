@@ -9,7 +9,7 @@ class EmbeddingSchema(Schema):
 
 class VerifySchema(Schema):
     id = fields.Int(required=True)
-    name = fields.Int(required=True)
+    name = fields.Str(required=True)
 
 
 # class PlainUserInfoSchema(Schema):
