@@ -74,7 +74,7 @@ class VerifyUser(MethodView):
             file_path = os.path.join(UPLOADS_PATH, secure_filename(file.filename))
             file.save(file_path)
 
-            embedding_test = DeepFace.represent(img_path = file_path, model_name=data['model'])[0]['embedding']
+            embedding_test = DeepFace.represent(img_path = file_path, model_name=data['model'], detector_backend=data['detector'])[0]['embedding']
           
             query = select(EmbeddingModel).where(EmbeddingModel.model == data['model'])
             conn = db.get_engine().connect()
@@ -125,7 +125,7 @@ class RegisterUser(MethodView):
             print(file.content_type)
             file_path = os.path.join(UPLOADS_PATH, secure_filename(file.filename))
             file.save(file_path)
-            embedding_objs = DeepFace.represent(img_path = file_path, model_name=data['model'])
+            embedding_objs = DeepFace.represent(img_path = file_path, model_name=data['model'], detector_backend=data['detector'])
             
             embedding_data = EmbeddingModel(user_id= data['id'],name = data['name'], model=data['model'], embedding=json.dumps(embedding_objs[0]['embedding']), precision=0.0, total_req=0)
             try:
