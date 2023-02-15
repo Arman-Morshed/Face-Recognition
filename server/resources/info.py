@@ -12,7 +12,7 @@ from server.schemas import EmbeddingSchema, VerifySchema
 from server.model.embedding import EmbeddingModel
 import json
 import numpy as np
-from sqlalchemy import select, update
+from sqlalchemy import select, delete
 from sqlalchemy.exc import IntegrityError
 
 
@@ -21,12 +21,38 @@ UPLOADS_PATH = join(dirname(realpath(__file__)),"images")
 
 
 blp = Blueprint("user", __name__, description="Operation on user info")
+threshold = {'VGG-Face': 0.40, 'Facenet': 0.40,'Facenet512': 0.30, 'ArcFace': 0.68, 'Dlib': 0.07, 'SFace': 0.593, 'OpenFace': 0.10,'DeepFace': 0.23, 'DeepID': 0.015  }
+
 
 @blp.route("/fetch")
 class FetchyUser(MethodView):
      @blp.response(200, EmbeddingSchema(many=True))
      def get(self):
         return EmbeddingModel.query.all()
+    
+     def delete(self):
+         EmbeddingModel.__table__.drop(db.engine)
+         EmbeddingModel.__table__.create(db.engine)
+
+         return jsonify({'message': "Deleted"})
+    
+
+@blp.route("/precision/<string:model_name>")
+class Precision(MethodView):
+    def get(self, model_name): 
+        query = select(EmbeddingModel.name,EmbeddingModel.precision).where(EmbeddingModel.model == model_name)
+        conn = db.get_engine().connect()
+        exe =conn.execute(query)
+        precision_data = exe.fetchall()
+        
+        # p = precision_data.iloc[1,:].to_string(header=False, index=False)
+
+        p = json.dumps([(tuple(row)) for row in precision_data])
+        resp = jsonify({'model': model_name, 'precision': p })
+        resp.status_code = 200
+        return resp
+
+ 
      
 @blp.route("/verify")
 class VerifyUser(MethodView):
@@ -70,7 +96,7 @@ class VerifyUser(MethodView):
             
             os.remove(file_path)  
               
-            return returnResponse(distance, matched_embedding)
+            return returnResponse(distance, matched_embedding, data['model'])
         else:
             resp = jsonify({'message' : 'Allowed file types is jpeg'})
             resp.status_code = 400
@@ -129,13 +155,13 @@ def findCosineDistance(source_representation, test_representation):
     c = np.sum(np.multiply(test_representation, test_representation))
     return 1 - (a / (np.sqrt(b) * np.sqrt(c)))
 
-def returnResponse(distance, matched_embedding): 
+def returnResponse(distance, matched_embedding, model_name): 
     embedding_entry = EmbeddingModel.query.filter_by(user_id=matched_embedding.user_id).first()
     embedding_entry.total_req += 1
     embedding_entry.precision= (matched_embedding.precision * matched_embedding.total_req + distance) / (matched_embedding.total_req + 1)
     db.session.commit()
 
-    if distance < 0.4:                   
+    if distance < threshold[model_name]:                   
         resp = jsonify({
         'id': matched_embedding.user_id,
         'name': matched_embedding.name
@@ -148,3 +174,5 @@ def returnResponse(distance, matched_embedding):
         })
         resp.status_code = 404
     return resp
+
+            
