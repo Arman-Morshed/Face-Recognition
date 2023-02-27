@@ -2,6 +2,7 @@ from marshmallow import Schema, fields
 
 class EmbeddingSchema(Schema):
     id = fields.Int(dump_only=True)
+    user_id = fields.Str(required=True)
     name = fields.Str(required=True)
     model = fields.Str(required=True)
     embedding = fields.Str(required=True)
