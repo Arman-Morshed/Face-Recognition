@@ -7,7 +7,7 @@ from os.path import join, dirname, realpath
 from werkzeug.utils import secure_filename
 import os
 from server.db import db
-import server.db as imgdb
+import server.dbop as imgdb
 from werkzeug.datastructures import ImmutableMultiDict
 from server.schemas import EmbeddingSchema, VerifySchema
 from server.model.embedding import EmbeddingModel
@@ -17,13 +17,13 @@ from sqlalchemy import select, delete
 from sqlalchemy.exc import IntegrityError
 import numpy as np
 import server.imgembedding as em
+import server.constants as CS
 
 UPLOADS_PATH = join(dirname(realpath(__file__)),"images")
 
 
 
 blp = Blueprint("user", __name__, description="Operation on user info")
-threshold = {'VGG-Face': 0.40, 'Facenet': 0.40,'Facenet512': 0.30, 'ArcFace': 0.68, 'Dlib': 0.07, 'SFace': 0.593, 'OpenFace': 0.10,'DeepFace': 0.23, 'DeepID': 0.015  }
 
 
 @blp.route("/fetch")
@@ -78,10 +78,7 @@ class VerifyUser(MethodView):
         
             embedding_test = DeepFace.represent(img_path = file_path, model_name=data['model'], detector_backend=data['detector'])[0]['embedding']
           
-            query = select(EmbeddingModel).where(EmbeddingModel.model == data['model'])
-            conn = db.get_engine().connect()
-            exe =conn.execute(query)
-            embedding_data = exe.fetchall()
+            embedding_data = imgdb.get(data['model'])
             
             distance = 9999
             matched_embedding = embedding_data[0]
@@ -167,7 +164,7 @@ def allowed_file(filename):
 def returnResponse(distance, matched_embedding, model_name): 
 
 
-    if distance < threshold[model_name]:   
+    if distance < CS.threshold[model_name]:   
         embedding_entry = EmbeddingModel.query.filter_by(user_id=matched_embedding.user_id).first()
         embedding_entry.total_req += 1
         embedding_entry.precision= (matched_embedding.precision * matched_embedding.total_req + distance) / (matched_embedding.total_req + 1)

@@ -5,6 +5,7 @@ from server.resources.info import blp as UserInfoBluePreint
 from server.test import blp as TestBluePrint
 import os
 import server.model
+import server.constants as CS
 
 def create_app(db_url=None):
 	app = Flask(__name__)
@@ -17,6 +18,7 @@ def create_app(db_url=None):
 	app.config["OPENAI_SWAGGER_UI_PATH"] = "/swagger-ui"
 	app.config["SQLALCHEMY_DATABASE_URI"] = db_url or os.getenv("DATABASE_URL", "sqlite:///data.db")
 	app.config["SQLALCHEMY_TRACK_MODIFICATION"] = False
+	app.config['TIMEOUT'] = CS.TIMEOUT
 	db.init_app(app)
 
 	api = Api(app)
