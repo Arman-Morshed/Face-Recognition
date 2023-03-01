@@ -2,6 +2,7 @@ from flask import Flask
 from server.db import db
 from flask_smorest import Api
 from server.resources.info import blp as UserInfoBluePreint
+from server.test import blp as TestBluePrint
 import os
 import server.model
 
@@ -25,4 +26,5 @@ def create_app(db_url=None):
 		db.create_all()
 
 	api.register_blueprint(UserInfoBluePreint)
+	api.register_blueprint(TestBluePrint)
 	return app

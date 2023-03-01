@@ -7,6 +7,7 @@ from os.path import join, dirname, realpath
 from werkzeug.utils import secure_filename
 import os
 from server.db import db
+import server.db as imgdb
 from werkzeug.datastructures import ImmutableMultiDict
 from server.schemas import EmbeddingSchema, VerifySchema
 from server.model.embedding import EmbeddingModel
@@ -15,8 +16,7 @@ import numpy as np
 from sqlalchemy import select, delete
 from sqlalchemy.exc import IntegrityError
 import numpy as np
-from sklearn.cluster import KMeans
-
+import server.imgembedding as em
 
 UPLOADS_PATH = join(dirname(realpath(__file__)),"images")
 
@@ -37,28 +37,6 @@ class FetchyUser(MethodView):
          EmbeddingModel.__table__.create(db.engine)
 
          return jsonify({'message': "Deleted"})
-    
-     def post(self): 
-        directory_path = "/Users/bdfayaz/Desktop/WG_IMAGE/Face-Recognition/database"
-        image_names = []
-        image_list = []
-# iterate over all files in the directory
-        for filename in os.listdir(directory_path):
-           
-            dir_name = os.path.join(directory_path, filename)
-            if os.path.isdir(dir_name):
-                for image_file in os.listdir(dir_name):
-                    # print(image_file)
-                    image_names.append(image_file)
-                new_person = {'name': filename, 'image_names': image_names}
-                # print(new_person)
-                image_list.append(new_person)
-                image_names = []
-
-        for im in image_list:
-            print('name: {} image name {}'.format(im['name'], im['image_names'][0]))
-       
-        return jsonify({'data': image_list})
     
 
 @blp.route("/precision/<string:model_name>")
@@ -110,7 +88,7 @@ class VerifyUser(MethodView):
             for embedding in embedding_data:
                 # print(embedding.id)
                 embedding_value = json.loads(embedding.embedding)
-                d = findCosineDistance(embedding_value, embedding_test)
+                d = em.findCosineDistance(embedding_value, embedding_test)
                 if d < distance: 
                     distance = d
                     matched_embedding = embedding
@@ -152,8 +130,7 @@ class RegisterUser(MethodView):
             if file and allowed_file(file.filename):
                 print(file.content_type)
                 file_path = os.path.join(UPLOADS_PATH, secure_filename(file.filename))
-                # embedding_objs = DeepFace.represent(img_path = file_path, model_name=data['model'], detector_backend=data['detector'])
-                embedding_objs = getEmbedding(file, file_path, data['model'], data['detector'])
+                embedding_objs = em.getEmbedding(file, file_path, data['model'], data['detector'])
                 temp_embedding = np.array([[embedding_objs[i]] for i in range(len(embedding_objs))])
                 print('Embedding length: {}'.format(len(embeddings)))
                 if len(embeddings) == 1: 
@@ -171,8 +148,7 @@ class RegisterUser(MethodView):
         embedding_avg = np.mean(embeddings, axis=1)
         embedding_data = EmbeddingModel(user_id= data['id'],name = data['name'], model=data['model'], embedding=json.dumps(embedding_avg.tolist()), precision=0.0, total_req=0)
         try:
-            db.session.add(embedding_data)
-            db.session.commit()
+            imgdb.save(embedding_data)
         except IntegrityError:
             abort(400, jsonify({'message': 'Please provide unique id'}))
 
@@ -186,11 +162,7 @@ ALLOWED_EXTENSIONS = set([ 'jpeg', 'jpg'])
 def allowed_file(filename):
 	return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def findCosineDistance(source_representation, test_representation):
-    a = np.matmul(np.transpose(source_representation), test_representation)
-    b = np.sum(np.multiply(source_representation, source_representation))
-    c = np.sum(np.multiply(test_representation, test_representation))
-    return 1 - (a / (np.sqrt(b) * np.sqrt(c)))
+
 
 def returnResponse(distance, matched_embedding, model_name): 
 
@@ -215,15 +187,6 @@ def returnResponse(distance, matched_embedding, model_name):
     return resp
 
 
-def getEmbedding(file, file_path, model, detector):
-    file.save(file_path)
-    embedding_value = DeepFace.represent(img_path = file_path, model_name=model, detector_backend=detector)
-    os.remove(file_path)                        #delete the file once it's embedding is saved
-    return embedding_value[0]['embedding']
 
-
-
-def getAverage(old_data, new_data):
-    return np.mean(np.array(old_data) + np.array(new_data))
 
 #/Users/bdfayaz/Desktop/WG_IMAGE/Face-Recognition/database
