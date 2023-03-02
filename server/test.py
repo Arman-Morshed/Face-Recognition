@@ -16,6 +16,9 @@ import random
 import server.constants as CS
 import server.imgembedding as em
 import shutil
+import pandas as pd
+import time
+
 
 from server.model.embedding import EmbeddingModel
 
@@ -23,7 +26,7 @@ from server.model.embedding import EmbeddingModel
 blp = Blueprint("test", __name__, description="Testing with data")
 test_data = []
 image_list = []
-
+writer = pd.ExcelWriter(os.path.join(CS.TEST_IMAGE_LOC, "{}_{}.xlsx".format(time.time(), CS.MODEL)), engine='xlsxwriter')
 
 
 @blp.route("/test")
@@ -33,8 +36,8 @@ class TestUser(MethodView):
          false_match = 0
          no_match = 0
          face_error = 0
-         numbers = generate_random_indices(0,10, [1,5,6, 8], 4)
-         data = []
+         
+         report_data = []
          for person in image_list:
             name =   person['name']
             images = person['image_names']
@@ -67,20 +70,32 @@ class TestUser(MethodView):
                         embedding_entry.total_req += 1
                         embedding_entry.precision= (matched_embedding.precision * matched_embedding.total_req + distance) / (matched_embedding.total_req + 1)
                         db.session.commit()  
+                        
 
+                        verification_result = "Corrrect Match"
                         if(matched_embedding.name == name): 
                             correct_match+= 1
+                            verification_result = "Corrrect Match"
                         else: 
                             false_match += 1
+                            verification_result = "False Match"
+                        report_data.append({"Input name": name, "Matched name": matched_embedding.name, "Distance": distance, "Verification result": verification_result, "Threshold": CS.threshold[CS.MODEL]})
                     else: 
                         no_match+=1
+                        verification_result = "No Match"
+                        report_data.append({"Input name": name, "Matched name": matched_embedding.name, "Distance": distance, "Verification result": verification_result, "Threshold": CS.threshold[CS.MODEL]})
 
                 except ValueError: 
                     print(f'ValueError - {im_dir}')
                     face_error += 1
-         print(f'Model {CS.MODEL}\nNo of Image trained- {CS.NO_OF_TEST_IMAGES}\n Face detector- {CS.DETECTOR}')
+                    report_data.append({"Input name": name, "Matched name": "None", "Distance": 0, "Verification result": "Face error", "Threshold": CS.threshold[CS.MODEL]})
+
+         df = pd.DataFrame(report_data)
+         df.to_excel(writer, index=False)
+         writer.save()
+         print(f'Model {CS.MODEL}\nNo of Image trained- {CS.NO_OF_TEST_IMAGES}\nFace detector- {CS.DETECTOR}')
          print(f'correct_match - {correct_match}\nfalse_match - {false_match} \nface_error - {face_error} \nNo Match {no_match}' )
-         return jsonify({'correct_match': correct_match,'false_match': false_match, 'face_error': face_error })
+         return jsonify({'Model':CS.DETECTOR,'correct_match': correct_match,'false_match': false_match, 'face_error': face_error, "No Match": no_match })
     
      def post(self): 
         USER_ID = 0
@@ -118,14 +133,15 @@ class TestUser(MethodView):
                 shutil.copy(im_dir, tested_img_dir)
                 try: 
                     embedding_objs = DeepFace.represent(img_path = im_dir, model_name=CS.MODEL, detector_backend=CS.DETECTOR)[0]['embedding']
+                    temp_embedding = np.array([[embedding_objs[i]] for i in range(len(embedding_objs))])
+                    print('Embedding length: {}'.format(len(embeddings)))
+                    if len(embeddings) == 1: 
+                        embeddings = temp_embedding
+                    else: 
+                        embeddings = np.concatenate((embeddings, temp_embedding), axis=1)
                 except ValueError: 
                     print(f'ValueError - {im_dir}')
-                temp_embedding = np.array([[embedding_objs[i]] for i in range(len(embedding_objs))])
-                print('Embedding length: {}'.format(len(embeddings)))
-                if len(embeddings) == 1: 
-                    embeddings = temp_embedding
-                else: 
-                    embeddings = np.concatenate((embeddings, temp_embedding), axis=1)
+ 
 
             embedding_avg = np.mean(embeddings, axis=1)
             embedding_data = EmbeddingModel(user_id=USER_ID,name = name, model=CS.MODEL, embedding=json.dumps(embedding_avg.tolist()), precision=0.0, total_req=0)
