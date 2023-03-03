@@ -26,28 +26,37 @@ from server.model.embedding import EmbeddingModel
 blp = Blueprint("test", __name__, description="Testing with data")
 test_data = []
 image_list = []
-writer = pd.ExcelWriter(os.path.join(CS.TEST_IMAGE_LOC, "{}_{}.xlsx".format(time.time(), CS.MODEL)), engine='xlsxwriter')
-
 
 @blp.route("/test")
 class TestUser(MethodView):
      def get(self):
+         writer = pd.ExcelWriter(os.path.join(CS.TRAIN_IMAGE_LOC, "{}_{}.xlsx".format(time.time(), CS.MODEL)), engine='xlsxwriter')
          correct_match = 0
          false_match = 0
          no_match = 0
          face_error = 0
          
          report_data = []
+         correct_data = []
+         false_data = []
+         no_data = []
+         face_error_data = []
          for person in image_list:
             name =   person['name']
             images = person['image_names']
             dirname = os.path.join(CS.directory_path, name)
             trained_indices = find_data_by_name(test_data, name)['indices']
-            test_indices = generate_random_indices(0, len(images)-1,trained_indices, 3)
+            test_indices = generate_random_indices(0, len(images)-1,trained_indices, CS.NO_OF_TEST_IMAGES)
+
+            test_img_dir = os.path.join(CS.TEST_IMAGE_LOC, name)
+            if not os.path.exists(test_img_dir):
+                os.makedirs(test_img_dir)
 
             for indice in test_indices: 
                 im_name = images[indice]
                 im_dir = os.path.join(dirname, im_name)
+                im_dir = os.path.join(dirname, im_name)
+                shutil.copy(im_dir, test_img_dir)
                 try: 
                     embedding_objs = DeepFace.represent(img_path = im_dir, model_name=CS.MODEL, detector_backend=CS.DETECTOR)[0]['embedding']
 
@@ -72,36 +81,36 @@ class TestUser(MethodView):
                         db.session.commit()  
                         
 
-                        verification_result = "Corrrect Match"
                         if(matched_embedding.name == name): 
                             correct_match+= 1
+                            correct_data.append({"Input name": name, "Matched name": im_name, "Distance": distance, "Verification result": "Corrrect Match", "Threshold": CS.threshold[CS.MODEL]})
                             verification_result = "Corrrect Match"
                         else: 
                             false_match += 1
-                            verification_result = "False Match"
-                        report_data.append({"Input name": name, "Matched name": matched_embedding.name, "Distance": distance, "Verification result": verification_result, "Threshold": CS.threshold[CS.MODEL]})
+                            false_data.append({"Input name": name, "Matched name": im_name, "Distance": distance, "Verification result": "False Match", "Threshold": CS.threshold[CS.MODEL]})
+        
                     else: 
                         no_match+=1
-                        verification_result = "No Match"
-                        report_data.append({"Input name": name, "Matched name": matched_embedding.name, "Distance": distance, "Verification result": verification_result, "Threshold": CS.threshold[CS.MODEL]})
+                        no_data.append({"Input name": name, "Matched name": im_name, "Distance": distance, "Verification result": "No Match", "Threshold": CS.threshold[CS.MODEL]})
 
                 except ValueError: 
                     print(f'ValueError - {im_dir}')
                     face_error += 1
-                    report_data.append({"Input name": name, "Matched name": "None", "Distance": 0, "Verification result": "Face error", "Threshold": CS.threshold[CS.MODEL]})
+                    face_error_data.append({"Input name": name, "Matched name": "None", "Distance": 0, "Verification result": "Face error", "Threshold": CS.threshold[CS.MODEL]})
 
+         report_data = correct_data + false_data + no_data + face_error_data
          df = pd.DataFrame(report_data)
          df.to_excel(writer, index=False)
          writer.save()
-         print(f'Model {CS.MODEL}\nNo of Image trained- {CS.NO_OF_TEST_IMAGES}\nFace detector- {CS.DETECTOR}')
+         print(f'Model {CS.MODEL}\nNo of Image trained- {CS.NO_OF_TRAINED_IMAGES}\nFace detector- {CS.DETECTOR}')
          print(f'correct_match - {correct_match}\nfalse_match - {false_match} \nface_error - {face_error} \nNo Match {no_match}' )
-         return jsonify({'Model':CS.DETECTOR,'correct_match': correct_match,'false_match': false_match, 'face_error': face_error, "No Match": no_match })
+         return jsonify({'Model':CS.MODEL,'correct_match': correct_match,'false_match': false_match, 'face_error': face_error, "No Match": no_match })
     
      def post(self): 
         USER_ID = 0
         image_names = []
        
-# iterate over all files in the directory
+        # iterate over all files in the directory
         for filename in os.listdir(CS.directory_path):
             dir_name = os.path.join(CS.directory_path, filename)
             if os.path.isdir(dir_name):
@@ -117,20 +126,20 @@ class TestUser(MethodView):
             name =   person['name']
             images = person['image_names']
             dirname = os.path.join(CS.directory_path, name)
-            train_indices = [random.randint(0, len(images)-1) for _ in range(CS.NO_OF_TEST_IMAGES)]
+            train_indices = [random.randint(0, len(images)-1) for _ in range(CS.NO_OF_TRAINED_IMAGES)]
             new_test_data = {'name': name, 'indices': train_indices}
             test_data.append(new_test_data)
             print(len(images))
 
-            tested_img_dir = os.path.join(CS.TEST_IMAGE_LOC, name)
-            if not os.path.exists(tested_img_dir):
-                os.makedirs(tested_img_dir)
+            train_img_dir = os.path.join(CS.TRAIN_IMAGE_LOC, name)
+            if not os.path.exists(train_img_dir):
+                os.makedirs(train_img_dir)
 
             embeddings = np.array([[]])
             for indice in train_indices: 
                 im_name = images[indice]
                 im_dir = os.path.join(dirname, im_name)
-                shutil.copy(im_dir, tested_img_dir)
+                shutil.copy(im_dir, train_img_dir)
                 try: 
                     embedding_objs = DeepFace.represent(img_path = im_dir, model_name=CS.MODEL, detector_backend=CS.DETECTOR)[0]['embedding']
                     temp_embedding = np.array([[embedding_objs[i]] for i in range(len(embedding_objs))])
@@ -155,17 +164,31 @@ class TestUser(MethodView):
         return jsonify({'data': image_list})
      
      def delete(self): 
-        for file_name in os.listdir(CS.TEST_IMAGE_LOC):
-    # create the full path to the file or folder
-            file_path = os.path.join(CS.TEST_IMAGE_LOC, file_name)
-            # check if the file path is a file or a directory
-            if os.path.isfile(file_path):
-                # delete the file
-                os.remove(file_path)
-            elif os.path.isdir(file_path):
-                # delete the folder and all its contents recursively
-                os.system(f"rm -rf {file_path}")
-                print('removing {}'.format(file_path))
+
+        # Get a list of all the folders in the directory
+        test_folders = [f for f in os.listdir(CS.TEST_IMAGE_LOC) if os.path.isdir(os.path.join(CS.TEST_IMAGE_LOC, f))]
+
+        # Loop through the folders and delete them
+        for folder in test_folders:
+            folder_path = os.path.join(CS.TEST_IMAGE_LOC, folder)
+            try:
+                # Use the shutil module to delete the folder and its contents
+                shutil.rmtree(folder_path)
+                print(f"Successfully deleted {folder_path}")
+            except OSError as e:
+                print(f"Error: {e.filename} - {e.strerror}")
+        
+        train_folders = [f for f in os.listdir(CS.TRAIN_IMAGE_LOC) if os.path.isdir(os.path.join(CS.TRAIN_IMAGE_LOC, f))]
+
+        # Loop through the folders and delete them
+        for folder in train_folders:
+            folder_path = os.path.join(CS.TRAIN_IMAGE_LOC, folder)
+            try:
+                # Use the shutil module to delete the folder and its contents
+                shutil.rmtree(folder_path)
+                print(f"Successfully deleted {folder_path}")
+            except OSError as e:
+                print(f"Error: {e.filename} - {e.strerror}")
         return jsonify({'message': 'Images removed'})
     
 
