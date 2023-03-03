@@ -1,0 +1,5 @@
+No of image trained: 4
+correct_match - 389
+false_match - 9 
+face_error - 2 
+No Match 125

@@ -40,6 +40,7 @@ class TestUser(MethodView):
          correct_data = []
          false_data = []
          no_data = []
+         false_name_list = []
          face_error_data = []
          for person in image_list:
             name =   person['name']
@@ -87,11 +88,12 @@ class TestUser(MethodView):
                             verification_result = "Corrrect Match"
                         else: 
                             false_match += 1
-                            false_data.append({"Input name": name, "Matched name": im_name, "Distance": distance, "Verification result": "False Match", "Threshold": CS.threshold[CS.MODEL]})
+                            false_name_list.append({'name': name, 'matched_name': matched_embedding.name})
+                            false_data.append({"Input name": matched_embedding.name, "Matched name": im_name, "Distance": distance, "Verification result": "False Match", "Threshold": CS.threshold[CS.MODEL]})
         
                     else: 
                         no_match+=1
-                        no_data.append({"Input name": name, "Matched name": im_name, "Distance": distance, "Verification result": "No Match", "Threshold": CS.threshold[CS.MODEL]})
+                        no_data.append({"Input name": matched_embedding.name, "Matched name": im_name, "Distance": distance, "Verification result": "No Match", "Threshold": CS.threshold[CS.MODEL]})
 
                 except ValueError: 
                     print(f'ValueError - {im_dir}')
@@ -102,13 +104,20 @@ class TestUser(MethodView):
          df = pd.DataFrame(report_data)
          df.to_excel(writer, index=False)
          writer.save()
+
+         with open(f'{CS.TRAIN_IMAGE_LOC}/{CS.MODEL}_{time.time()}_report_summary.txt', 'w') as f:
+             f.write(f'No of image trained: {CS.NO_OF_TRAINED_IMAGES}\ncorrect_match - {correct_match}\nfalse_match - {false_match} \nface_error - {face_error} \nNo Match {no_match}')
+
          print(f'Model {CS.MODEL}\nNo of Image trained- {CS.NO_OF_TRAINED_IMAGES}\nFace detector- {CS.DETECTOR}')
          print(f'correct_match - {correct_match}\nfalse_match - {false_match} \nface_error - {face_error} \nNo Match {no_match}' )
-         return jsonify({'Model':CS.MODEL,'correct_match': correct_match,'false_match': false_match, 'face_error': face_error, "No Match": no_match })
+        #  return jsonify({'Model':CS.MODEL,'correct_match': correct_match,'false_match': false_match, 'face_error': face_error, "No Match": no_match })
+         return jsonify({'false list': false_name_list})
     
      def post(self): 
         USER_ID = 0
         image_names = []
+        test_data.clear()
+        image_list.clear()
        
         # iterate over all files in the directory
         for filename in os.listdir(CS.directory_path):

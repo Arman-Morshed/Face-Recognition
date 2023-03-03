@@ -1,6 +1,6 @@
 TIMEOUT = 1200
-NO_OF_TRAINED_IMAGES = 2
-NO_OF_TEST_IMAGES = 3
+NO_OF_TRAINED_IMAGES = 4
+NO_OF_TEST_IMAGES = 5
 MODEL = 'Facenet'
 DETECTOR = 'mtcnn'
 directory_path = "/Users/bdfayaz/Desktop/WG_IMAGE/Face-Recognition/database"
