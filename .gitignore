@@ -19,7 +19,9 @@ lib64/
 parts/
 sdist/
 var/
+TestData/
 wheels/
+database/
 share/python-wheels/
 *.egg-info/
 .installed.cfg

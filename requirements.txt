@@ -1,3 +1,9 @@
+flask
+flask-smorest
+python-dotenv
+sqlalchemy
+flask-sqlalchemy
+
 aiohttp==3.8.3
 aiosignal==1.3.1
 async-timeout==4.0.2
@@ -7,3 +13,6 @@ frozenlist==1.3.3
 idna==3.4
 multidict==6.0.4
 yarl==1.8.2
+git+https://github.com/istiakmorsalinmlbd/deepface-apple-silicon
+scikit-learn
+xlsxwriter
